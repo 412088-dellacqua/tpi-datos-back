@@ -48,4 +48,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+
+// Endpoint para obtener un usuario por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password'); // Excluye la password si existe
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('Error al buscar usuario por ID:', err);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+});
+
 module.exports = router;

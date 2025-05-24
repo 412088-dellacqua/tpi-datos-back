@@ -25,7 +25,8 @@ app.get('/', (req, res) => {
 app.use('/api/users', require('./routes/user.routes.js'));
 const chatRoutes = require('./routes/chat.routes')(io);
 app.use('/api/chats', chatRoutes);
-app.use('/api/messages', require('./routes/message.routes.js'));
+const messageRoute = require('./routes/message.routes.js')(io);
+app.use('/api/messages', messageRoute);
 
 // Escuchando eventos de Socket.IO
 io.on('connection', (socket) => {
