@@ -1,8 +1,12 @@
 const express = require('express');
+const cors = require('cors'); // 👈 importás cors
 require('dotenv').config();
 require('./db'); // Importa la conexión a la BD
 
 const app = express();
+
+// 👇 habilitás CORS para todas las rutas y orígenes
+app.use(cors());
 
 app.use(express.json());
 
