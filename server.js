@@ -1,24 +1,45 @@
 const express = require('express');
-const cors = require('cors'); // 👈 importás cors
+const cors = require('cors');
+const http = require('http'); // 👈 Necesitamos esto para crear el servidor HTTP
+const { Server } = require('socket.io'); // 👈 Socket.IO
 require('dotenv').config();
-require('./db'); // Importa la conexión a la BD
+require('./db');
 
 const app = express();
-
-// 👇 habilitás CORS para todas las rutas y orígenes
-app.use(cors());
-
-app.use(express.json());
-
-// Rutas de prueba
-app.get('/', (req, res) => {
-  res.send('¡Servidor de chat funcionando!');
+const server = http.createServer(app); // 👈 Express ahora usa este servidor
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:4200', // o el dominio de tu app Angular
+    methods: ['GET', 'POST'],
+  },
 });
 
-// Ruta de usuarios (vacía por ahora)
+app.use(cors());
+app.use(express.json());
+
+// Rutas
+app.get('/', (req, res) => {
+  res.send('¡Servidor de chat funcionando con Socket.IO!');
+});
+
 app.use('/api/users', require('./routes/user.routes.js'));
-app.use('/api/chats', require('./routes/chat.routes.js'));
+const chatRoutes = require('./routes/chat.routes')(io);
+app.use('/api/chats', chatRoutes);
 app.use('/api/messages', require('./routes/message.routes.js'));
 
+// Escuchando eventos de Socket.IO
+io.on('connection', (socket) => {
+  console.log('🔌 Usuario conectado:', socket.id);
+
+  socket.on('mensaje', (data) => {
+    console.log('💬 Mensaje recibido:', data);
+    io.emit('mensaje', data); // retransmitir a todos
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ Usuario desconectado:', socket.id);
+  });
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Servidor escuchando en puerto ${PORT}`));
