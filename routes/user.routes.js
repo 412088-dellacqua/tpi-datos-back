@@ -63,4 +63,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET buscar usuarios por username parcial
+router.get('/buscar/:username', async (req, res) => {
+  try {
+    const regex = new RegExp(req.params.username, 'i');
+    const usuarios = await User.find({ username: regex }).select('-password'); 
+    res.json(usuarios);
+  } catch (err) {
+    console.error('Error al buscar usuarios:', err);
+    res.status(500).json({ error: 'Error al buscar usuarios por username' });
+  }
+});
+
+
 module.exports = router;
