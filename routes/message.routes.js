@@ -55,35 +55,29 @@ module.exports = function (io) {
     }
   });
 
-  // GET /api/stats/top-palabras-por-chat
-  router.get('/stats/top-palabras-por-chat', async (req, res) => {
+  // GET /api/stats/top-palabras
+  router.get('/stats/top-palabras', async (req, res) => {
     try {
       const resultado = await Message.aggregate([
         {
           $project: {
-            chatId: 1,
             words: { $split: ["$text", " "] }
           }
         },
         { $unwind: "$words" },
         {
           $group: {
-            _id: { chatId: "$chatId", word: "$words" },
+            _id: "$words",
             count: { $sum: 1 }
           }
         },
-        { $sort: { "_id.chatId": 1, count: -1 } },
-        {
-          $group: {
-            _id: "$_id.chatId",
-            topWord: { $first: "$_id.word" },
-            count: { $first: "$count" }
-          }
-        }
+        { $sort: { count: -1 } },
+        { $limit: 10 }
       ]);
 
       res.json(resultado);
     } catch (err) {
+      console.error('Error al obtener palabras más usadas:', err);
       res.status(500).json({ error: 'Error al obtener palabras más usadas' });
     }
   });
@@ -175,55 +169,57 @@ module.exports = function (io) {
     }
   });
 
-  router.get('/stats/chats-mas-activos', async (req, res) => {
-    try {
-      const datos = await Message.aggregate([
-        {
-          $group: {
-            _id: "$chatId",
-            totalMensajes: { $sum: 1 }
-          }
-        },
-        {
-          $lookup: {
-            from: "chats",
-            localField: "_id",
-            foreignField: "_id",
-            as: "chat"
-          }
-        },
-        { $unwind: "$chat" },
-        {
-          $lookup: {
-            from: "users",
-            localField: "chat.users",
-            foreignField: "_id",
-            as: "usuariosInfo"
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            chatId: "$_id",
-            totalMensajes: 1,
-            usuarios: {
-              $map: {
-                input: "$usuariosInfo",
-                as: "usuario",
-                in: "$$usuario.username"
-              }
+router.get('/stats/chats-mas-activos', async (req, res) => {
+  try {
+    const datos = await Message.aggregate([
+      {
+        $group: {
+          _id: "$chatId",
+          totalMensajes: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: {
+          from: "chats",
+          localField: "_id",
+          foreignField: "_id",
+          as: "chat"
+        }
+      },
+      { $unwind: "$chat" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "chat.users",
+          foreignField: "_id",
+          as: "usuariosInfo"
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          chatId: "$_id",
+          totalMensajes: 1,
+          usuarios: {
+            $map: {
+              input: "$usuariosInfo",
+              as: "usuario",
+              in: "$$usuario.username"
             }
           }
-        },
-        { $sort: { totalMensajes: -1 } }
-      ]);
+        }
+      },
+      { $sort: { totalMensajes: -1 } },
+      { $limit: 5 } 
+    ]);
 
-      res.json(datos);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Error al obtener chats más activos' });
-    }
-  });
+    res.json(datos);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener chats más activos' });
+  }
+});
+
 
 
   router.get('/stats/evolucion-mensajes', async (req, res) => {
