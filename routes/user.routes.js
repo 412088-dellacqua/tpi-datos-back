@@ -67,13 +67,39 @@ router.get('/:id', async (req, res) => {
 router.get('/buscar/:username', async (req, res) => {
   try {
     const regex = new RegExp(req.params.username, 'i');
-    const usuarios = await User.find({ username: regex }).select('-password'); 
+    const usuarios = await User.find({ username: regex }).select('-password');
     res.json(usuarios);
   } catch (err) {
     console.error('Error al buscar usuarios:', err);
     res.status(500).json({ error: 'Error al buscar usuarios por username' });
   }
 });
+
+
+// GET /api/stats/usuarios-por-mes
+router.get('/stats/usuarios-por-mes', async (req, res) => {
+  try {
+    const resultado = await User.aggregate([
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" }
+          },
+          totalUsers: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 }
+      }
+    ]);
+
+    res.json(resultado);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios registrados por mes' });
+  }
+});
+
 
 
 module.exports = router;

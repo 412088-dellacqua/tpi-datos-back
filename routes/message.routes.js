@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const Chat = require('../models/Chat');
 
-module.exports = function(io) {
+module.exports = function (io) {
   const router = express.Router();
 
   // Enviar un mensaje (crear)
@@ -54,6 +54,321 @@ module.exports = function(io) {
       res.status(500).json({ error: 'Error al obtener mensajes' });
     }
   });
+
+  // GET /api/stats/top-palabras-por-chat
+  router.get('/stats/top-palabras-por-chat', async (req, res) => {
+    try {
+      const resultado = await Message.aggregate([
+        {
+          $project: {
+            chatId: 1,
+            words: { $split: ["$text", " "] }
+          }
+        },
+        { $unwind: "$words" },
+        {
+          $group: {
+            _id: { chatId: "$chatId", word: "$words" },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.chatId": 1, count: -1 } },
+        {
+          $group: {
+            _id: "$_id.chatId",
+            topWord: { $first: "$_id.word" },
+            count: { $first: "$count" }
+          }
+        }
+      ]);
+
+      res.json(resultado);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener palabras más usadas' });
+    }
+  });
+
+
+  // GET /api/stats/mensajes-por-usuario
+  router.get('/stats/mensajes-por-usuario', async (req, res) => {
+    try {
+      const resultado = await Message.aggregate([
+        {
+          $group: {
+            _id: "$sender",
+            messageCount: { $sum: 1 }
+          }
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "user"
+          }
+        },
+        { $unwind: "$user" },
+        {
+          $project: {
+            _id: 0,
+            username: "$user.username",
+            email: "$user.email",
+            messageCount: 1
+          }
+        },
+        { $sort: { messageCount: -1 } }
+      ]);
+
+      res.json(resultado);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener mensajes por usuario' });
+    }
+  });
+
+
+  // GET /api/stats/mensajes-por-fecha
+  router.get('/stats/mensajes-por-fecha', async (req, res) => {
+    try {
+      const resultado = await Message.aggregate([
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m-%d", date: "$timestamp" }
+            },
+            messageCount: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+
+      res.json(resultado);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener mensajes por fecha' });
+    }
+  });
+
+  router.get('/stats/ranking-usuarios', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        { $group: { _id: "$sender", totalMensajes: { $sum: 1 } } },
+        {
+          $lookup: {
+            from: "usuarios",
+            localField: "_id",
+            foreignField: "_id",
+            as: "usuario"
+          }
+        },
+        { $unwind: "$usuario" },
+        {
+          $project: {
+            _id: 0,
+            username: "$usuario.username",
+            totalMensajes: 1
+          }
+        },
+        { $sort: { totalMensajes: -1 } }
+      ]);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener ranking de usuarios' });
+    }
+  });
+
+  router.get('/stats/chats-mas-activos', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        {
+          $group: {
+            _id: "$chatId",
+            totalMensajes: { $sum: 1 }
+          }
+        },
+        {
+          $lookup: {
+            from: "chats",
+            localField: "_id",
+            foreignField: "_id",
+            as: "chat"
+          }
+        },
+        { $unwind: "$chat" },
+        {
+          $lookup: {
+            from: "users",
+            localField: "chat.users",
+            foreignField: "_id",
+            as: "usuariosInfo"
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            chatId: "$_id",
+            totalMensajes: 1,
+            usuarios: {
+              $map: {
+                input: "$usuariosInfo",
+                as: "usuario",
+                in: "$$usuario.username"
+              }
+            }
+          }
+        },
+        { $sort: { totalMensajes: -1 } }
+      ]);
+
+      res.json(datos);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Error al obtener chats más activos' });
+    }
+  });
+
+
+  router.get('/stats/evolucion-mensajes', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        {
+          $group: {
+            _id: {
+              fecha: {
+                $dateToString: { format: "%Y-%m-%d", date: "$timestamp" }
+              }
+            },
+            totalMensajes: { $sum: 1 }
+          }
+        },
+        { $sort: { "_id.fecha": 1 } },
+        {
+          $project: {
+            _id: 0,
+            fecha: "$_id.fecha",
+            totalMensajes: 1
+          }
+        }
+      ]);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener evolución diaria' });
+    }
+  });
+
+
+  router.get('/stats/mensajes-por-dia-semana', async (req, res) => {
+    try {
+      const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const datos = await Message.aggregate([
+        {
+          $project: {
+            diaSemana: { $dayOfWeek: "$timestamp" }
+          }
+        },
+        {
+          $group: {
+            _id: "$diaSemana",
+            totalMensajes: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+      const datosConDias = datos.map(d => ({
+        dia: dias[d._id - 1],
+        totalMensajes: d.totalMensajes
+      }));
+      res.json(datosConDias);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener mensajes por día de la semana' });
+    }
+  });
+
+  router.get('/stats/promedio-primer-mensaje', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        {
+          $project: {
+            sender: 1,
+            fecha: {
+              $dateToString: { format: "%Y-%m-%d", date: "$timestamp" }
+            },
+            hora: { $hour: "$timestamp" }
+          }
+        },
+        {
+          $group: {
+            _id: { sender: "$sender", fecha: "$fecha" },
+            primerHora: { $min: "$hora" }
+          }
+        },
+        {
+          $group: {
+            _id: "$_id.sender",
+            promedioInicio: { $avg: "$primerHora" }
+          }
+        }
+      ]);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener promedio de hora del primer mensaje' });
+    }
+  });
+
+  router.get('/stats/longitud-promedio-mensajes', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        {
+          $project: {
+            sender: 1,
+            longitud: { $strLenCP: "$text" }
+          }
+        },
+        {
+          $group: {
+            _id: "$sender",
+            promedioLongitud: { $avg: "$longitud" }
+          }
+        },
+        { $sort: { promedioLongitud: -1 } }
+      ]);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener usuarios por longitud de mensajes' });
+    }
+  });
+
+  router.get('/stats/ultimo-mensaje-usuario', async (req, res) => {
+    try {
+      const datos = await Message.aggregate([
+        {
+          $group: {
+            _id: "$sender",
+            ultimoMensaje: { $max: "$timestamp" }
+          }
+        },
+        {
+          $lookup: {
+            from: "usuarios",
+            localField: "_id",
+            foreignField: "_id",
+            as: "usuario"
+          }
+        },
+        { $unwind: "$usuario" },
+        {
+          $project: {
+            username: "$usuario.username",
+            ultimoMensaje: 1
+          }
+        },
+        { $sort: { ultimoMensaje: -1 } }
+      ]);
+      res.json(datos);
+    } catch (err) {
+      res.status(500).json({ error: 'Error al obtener último mensaje por usuario' });
+    }
+  });
+
+
 
   return router;
 };
