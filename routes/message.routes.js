@@ -364,7 +364,20 @@ router.get('/stats/chats-mas-activos', async (req, res) => {
     }
   });
 
+  router.post('/execute-aggregate', async (req, res) => {
+    try {
+      const { collection, query } = req.body;
+      if (!collection || !query) return res.status(400).json({ error: 'Falta colección o query' });
 
+      const dbCollection = mongoose.connection.collection(collection);
+      const result = await dbCollection.aggregate(query).toArray();
+
+      res.json(result);
+    } catch (err) {
+      console.error('Error ejecutando agregación dinámica:', err);
+      res.status(500).json({ error: 'Error al ejecutar la consulta' });
+    }
+  });
 
   return router;
 };
