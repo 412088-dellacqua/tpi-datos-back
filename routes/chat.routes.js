@@ -122,6 +122,16 @@ module.exports = function (io) {
   }
 });
 
+router.delete('/:chatId', async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const chat = await Chat.findByIdAndDelete(chatId);
+    res.status(200).json({ message: 'Chat eliminado' });
+  } catch (error) {
+    console.error('Error al eliminar el chat:', error);
+    res.status(500).json({ message: 'Error al eliminar el chat' });
+  }
+});
 
 
   return router;
